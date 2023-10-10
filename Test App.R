@@ -31,11 +31,11 @@ ui <- fluidPage(
       
       # Output: Tabset w/ plot, summary, table, map, and graph
       tabsetPanel(type = "tabs",
-                  tabPanel("Plot", plotOutput("plot")),
-                  tabPanel("Summary", verbatimTextOutput("summary")),
-                  tabPanel("Table", tableOutput("table")),
+                  tabPanel("Graph", plotOutput("graphique")),  # New tab for the graph
                   tabPanel("Map", leafletOutput("map")),
-                  tabPanel("Graphique", plotOutput("graphique"))  # New tab for the graph
+                  tabPanel("Table", tableOutput("table")),
+                  tabPanel("Summary", verbatimTextOutput("summary")),
+                  tabPanel("Plot", plotOutput("plot"))
       )
       
     )
@@ -50,23 +50,21 @@ server <- function(input, output, session) {
     data
   })
   
-  # Generate a plot of the data
-  output$plot <- renderPlot({
-    data$available_bikes
-    hist(data$available_bikes,
-         main = "histo",
-         col = "#75AADB", border = "white", breaks = input$n)
+  # Generate and render the graph
+  output$graphique <- renderPlot({
+    # Filter with the stations with the most available bikes
+    data_filtered <- data %>%
+      arrange(desc(available_bikes)) %>%
+      head(10)
+    
+    # Create a modified column for station names without the first 8 characters
+    data_filtered$modified_name <- substr(data_filtered$name, 8, nchar(data_filtered$name))
+    
+    ggplot(data_filtered, aes(x = modified_name, y = available_bikes)) +
+      geom_bar(stat = "identity") +
+      labs(x = "Name", y = "Available bike", title = "Nombre de velo disponible par station")
   })
   
-  # Generate a summary of the data
-  output$summary <- renderPrint({
-    summary(d())
-  })
-  
-  # Generate an HTML table view of the data
-  output$table <- renderTable({
-    d()
-  })
   
   # Generate and render the map
   output$map <- renderLeaflet({
@@ -79,11 +77,22 @@ server <- function(input, output, session) {
       )
   })
   
-  # Generate and render the graph
-  output$graphique <- renderPlot({
-    ggplot(data, aes(x = name, y = available_bikes)) +
-      geom_bar(stat = "identity") +
-      labs(x = "Name", y = "Available bike", title = "Nombre de velo disponible par station")
+  # Generate an HTML table view of the data
+  output$table <- renderTable({
+    d()
+  })
+  
+  # Generate a summary of the data
+  output$summary <- renderPrint({
+    summary(d())
+  })
+  
+  # Generate a plot of the data
+  output$plot <- renderPlot({
+    data$available_bikes
+    hist(data$available_bikes,
+         main = "histo",
+         col = "#75AADB", border = "white", breaks = input$n)
   })
 }
 
