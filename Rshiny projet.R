@@ -1,35 +1,43 @@
-if(!require())
+if(!require(ggplot2))
 {
-  install.packages("")
-  library()
+  install.packages("ggplot2")
+  library(ggplot2)
 }
 
+if(!require(shiny))
+{
+  install.packages("shiny")
+  library(shiny)
+}
 
-install.packages(c("httr","jsonlite"))
-install.packages("shiny")
-install.packages("ggplot2")
-install.packages("dplyr")
-library(shiny)
-library(ggplot2)
-library(dplyr)
+if(!require(RMySQL))
+{
+  install.packages("RMySQL")
+  library(RMySQL)
+}
+
+if(!require(dplyr))
+{
+  install.packages("dplyr")
+  library(dplyr)
+}
+
+install.packages("httr")
+install.packages("jsonlite")
 library(httr)
 library(jsonlite)
 
-base <- 'https://api.jcdecaux.com/vls/v1/stations?contract=Lyon&apiKey=6a406398a0b8768df2169c2858b7b6bcd368dde2'
+base <- 'https://api.jcdecaux.com/vls/v3/stations?contract=Lyon&apiKey=6a406398a0b8768df2169c2858b7b6bcd368dde2'
 res <- GET(base)
 
 data <- fromJSON(rawToChar(res$content), flatten = TRUE)
-df = data.frame(data)
 
-#creation de table
+# Création de table
 #Host: sql11.freesqldatabase.com
 #Database name: sql11646686
 #Database user: sql11646686
 #Database password: 3eB8YUZEsX
 #Port number: 3306
-
-install.packages("RMySQL")
-library(RMySQL)
 
 con <- dbConnect(MySQL(),
                  user = 'sql11646686',
@@ -37,21 +45,18 @@ con <- dbConnect(MySQL(),
                  host = 'sql11.freesqldatabase.com',
                  dbname = 'sql11646686')
 
-summary(con)
-
+# TEST
 dbWriteTable(con,"test",iris)
 dbGetQuery(con, "SELECT * FROM test LIMIT 2;")
 
 
-
-write.csv(df, "C:/Users/Jbusson/Documents/Rshiny/velo'v.csv")
-
+write.csv(df, "C:/Users/Jbusson/Documents/Rshiny/Excel.csv")
 
 
 # Charger les données depuis un fichier CSV
-data <- read.csv("velo'v.csv") 
+data <- read.csv("Excel.csv") 
 
-# Créer une application Shiny
+# Création application Shiny
 ui <- fluidPage(
   # En-tête de l'application
   headerPanel("Tableau de bord"),
@@ -69,22 +74,39 @@ ui <- fluidPage(
   )
 )
 
-
-
-
+#GRAPHIQUE
 
 server <- function(input, output) {
   output$tableau <- renderDataTable({
     data
   })
   
+#en cours de modification pour mettre le nom en abscisse verticalement et les bars par ordre croissant
   # Créer un graphique dans l'onglet "Graphique"
   output$graphique <- renderPlot({
-    ggplot(data, aes(x = name, y = available_bike)) +
-      geom_point() +
-      labs(x = "Name", y = "Available bike", title = "Nombre de velo disponible par station")
+    # Filtrer les stations avec le moins de vélos disponibles
+    data_filtered <- data %>%
+      arrange(desc(available_bikes)) %>%
+      head(10) # Vous pouvez modifier le nombre de stations à afficher ici
+    
+    ggplot(data_filtered, aes(x = reorder(name, -available_bikes), y = available_bikes)) +
+      geom_bar(stat = "identity") +
+      labs(x = "Name", y = "Available bikes", title = "Les stations avec le plus de vélos disponibles") +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  })
+  
+  # Créer un graphique dans l'onglet "Graphique"
+  output$graphique <- renderPlot({
+    # Filtre avec les stations avec le moins de vélos disponibles
+    data_filtered <- data %>%
+      arrange(available_bikes) %>%
+      head(10)
+    ggplot(data_filtered, aes(x = name, y = available_bikes)) +
+      geom_bar(stat = "identity") +
+      labs(x = "Name", y = "Available bike", title = "Les stations avec le moins de vélos disponibles")
   })
 }
+
 
 
 server <- function(input, output) {
