@@ -1,0 +1,117 @@
+if(!require(shinythemes)){install.packages("shinythemes")}
+if(!require(shinydashboard)){install.packages("shinydashboard")}
+
+
+
+library(shiny)
+library(leaflet)
+library(ggplot2)
+library(shinythemes)
+library(shinydashboard)
+
+#data
+
+data <- read.csv("C:/Users/nicob/Downloads/Excel.csv")
+
+
+ui <- dashboardPage(
+  
+  #Titre dashboard
+  dashboardHeader(title = "Vélo'v"),
+  
+  #Menu on the side
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("Graph", tabName = "Graphique", icon = icon("dashboard")),
+      menuItem("Map", tabName = "Carte", icon = icon("th")),
+      menuItem("Table", tabName = "Table", icon = icon("dashboard")),
+      menuItem("Summary", tabName = "Résumé", icon = icon("dashboard")),
+      menuItem("Plot", tabName = "Plot", icon = icon("dashboard"))
+    )
+  ),
+  
+  # Correct placement of dashboardBody
+  dashboardBody(
+    tabItems(
+      tabItem(tabName = "Graph", 
+              # Tableau 1
+              plotOutput("graphique")),  # New tab for the graph
+      
+      tabItem(tabName = "Map",
+              # Tableau 2
+              leafletOutput("map")),
+      
+      tabItem(tabName = "Table",
+              # Tableau 3
+               tableOutput("table")),
+      
+      tabItem(tabName = "Summary",
+              # Tableau 4
+              tabPanel("Summary", verbatimTextOutput("summary"))),
+      
+      tabItem(tabName = "Plot",
+              # Tableau 5
+              tabPanel("Plot", plotOutput("plot"))
+      )
+    )
+  )
+)
+
+
+
+# Define server logic for the combined app
+server <- function(input, output, session) {
+  
+  # Reactive expression to generate the requested distribution
+  d <- reactive({
+    data
+  })
+  
+  # Generate and render the graph
+  output$graphique <- renderPlot({
+    # Filter with the stations with the most available bikes
+    data_filtered <- data %>%
+      arrange(desc(available_bikes)) %>%
+      head(10)
+    
+    # Create a modified column for station names without the first 8 characters
+    data_filtered$modified_name <- substr(data_filtered$name, 8, nchar(data_filtered$name))
+    
+    ggplot(data_filtered, aes(x = modified_name, y = available_bikes)) +
+      geom_bar(stat = "identity") +
+      labs(x = "Name", y = "Available bike", title = "Nombre de velo disponible par station")
+  })
+  
+  
+  # Generate and render the map
+  output$map <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      addMarkers(
+        data = data,
+        lat = ~`position.lat`,   # Use position.lat column
+        lng = ~`position.lng`    # Use position.lng column
+      )
+  })
+  
+  # Generate an HTML table view of the data
+  output$table <- renderTable({
+    d()
+  })
+  
+  # Generate a summary of the data
+  output$summary <- renderPrint({
+    summary(d())
+  })
+  
+  # Generate a plot of the data
+  output$plot <- renderPlot({
+    data$available_bikes
+    hist(data$available_bikes,
+         main = "histo",
+         col = "#75AADB", border = "white", breaks = input$n)
+  })
+}
+
+# Create and run the combined Shiny app
+shinyApp(ui, server)
