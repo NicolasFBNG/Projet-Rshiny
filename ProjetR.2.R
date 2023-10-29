@@ -59,7 +59,7 @@ ui <- dashboardPage(
                 box(title = "Status de la station", width = 5, plotOutput("graphique2"))
               ),
               box(title = "Nombre de stations à bonus", width = 6, plotOutput("bonus_vs_no_bonus_plot")),
-              box(title = "bike heatmap", width = 6, plotOutput("bike_heatmap")),
+              box(title = "top_10_stations_chart", width = 6, plotOutput("top_10_stations_chart")),
               box(title = "Scatter Plot", width = 6, plotOutput("scatter_plot")),
               box(title = "Bike Stands and Available Bikes", width = 6, plotOutput("stacked_bar_chart")),
               box(title = "Filter by Postcode", width = 6,
@@ -94,11 +94,17 @@ server <- function(input, output, session) {
       labs(x = "Name", y = "Available bike", title = "Nombre de vélo disponible par station")
   })
   
-  output$graphique2 <- renderPlot({
-    ggplot(data, aes(x = status)) +
-      geom_bar() +
-      labs(x = "Station Status", y = "Count", title = "Distribution of Station Status")
-  })
+
+    output$graphique2 <- renderPlot({
+      status_counts <- table(data$status)
+      data <- data.frame(status = names(status_counts), count = as.vector(status_counts))
+      
+      ggplot(data, aes(x = "", y = count, fill = status)) +
+        geom_bar(stat = "identity", width = 1) +
+        coord_polar(theta = "y") +
+        labs(title = "Distribution des Status des Station") +
+        theme_void()
+    })
     
   output$bonus_vs_no_bonus_plot <- renderPlot({
     ggplot(data, aes(x = bonus, fill = bonus)) +
@@ -107,17 +113,18 @@ server <- function(input, output, session) {
       scale_fill_manual(values = c("yes" = "blue", "no" = "red")) +
       theme_minimal()
   })
-  output$bike_heatmap <- renderLeaflet({
-    leaflet() %>%
-      addTiles() %>%  # Add a base map
-      addHeatmap(
-        data = data,
-        lat = ~position.lat,
-        lng = ~position.lng,
-        radius = 15,  # Adjust the radius as needed
-        blur = 20  # Adjust the blur as needed
-      )
+  output$top_10_stations_chart <- renderPlot({
+    top_10_stations <- data %>%
+      arrange(desc(available_bikes)) %>%
+      head(10)
+    
+    ggplot(top_10_stations, aes(x = reorder(name...3, -available_bikes), y = available_bikes)) +
+      geom_bar(stat = "identity") +
+      labs(title = "Top 10 Most Used Stations", x = "Station Name", y = "Available Bikes") +
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+      scale_x_discrete(name = "Station Name")
   })
+
   output$scatter_plot <- renderPlot({
       ggplot(data, aes(x = bike_stands, y = available_bike_stands)) +
         geom_point() +
