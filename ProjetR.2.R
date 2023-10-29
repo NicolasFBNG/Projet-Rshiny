@@ -7,6 +7,9 @@ if (!require(shinydashboard)) {
 if (!require(leaflet)) {
   install.packages("leaflet")
 }
+if (!require(leaflet.extras)) {
+  install.packages("leaflet.extras")
+}
 if (!require(dplyr)) {
   install.packages("dplyr")
 }
@@ -18,7 +21,7 @@ library(ggplot2)
 library(shinythemes)
 library(shinydashboard)
 library(dplyr)
-
+library(leaflet.extras)
 # data
 data <- read.csv("Excel.csv")
 adresse_station = read.csv("Excel.csv")
@@ -36,11 +39,27 @@ ui <- dashboardPage(
     tabItems(
       tabItem(tabName = "Dashboard",
               fluidRow(
+                # Add the valueBox to display the total number of bicycles
+                valueBox(
+                  value = sum(data$available_bikes),  # Calculate the total number of bikes
+                  subtitle = "Nombre total de vélos disponibles",
+                  icon = icon("bicycle"),
+                  color = "blue"  # You can adjust the color as needed
+                )),
+              fluidRow(
+                # Add the valueBox to display the total number of bicycles
+                valueBox(
+                  value = sum(data$available_bike_stands),  # Calculate the total number of bikes
+                  subtitle = "Nombre total de vélos en utilisation",
+                  icon = icon("bicycle"),
+                  color = "red"  # You can adjust the color as needed
+                )),
+              fluidRow(
                 box(title = "Carte", width = 7, solidHeader = TRUE, status = "primary", leafletOutput("map")),
                 box(title = "Status de la station", width = 5, plotOutput("graphique2"))
               ),
               box(title = "Nombre de stations à bonus", width = 6, plotOutput("bonus_vs_no_bonus_plot")),
-              box(title = "Bike Stands Histogram", width = 6, plotOutput("bike_stands_hist")),
+              box(title = "bike heatmap", width = 6, plotOutput("bike_heatmap")),
               box(title = "Scatter Plot", width = 6, plotOutput("scatter_plot")),
               box(title = "Bike Stands and Available Bikes", width = 6, plotOutput("stacked_bar_chart")),
               box(title = "Filter by Postcode", width = 6,
@@ -87,6 +106,17 @@ server <- function(input, output, session) {
       labs(title = "Bonus vs. No Bonus Stations", x = "Bonus Availability", y = "Count") +
       scale_fill_manual(values = c("yes" = "blue", "no" = "red")) +
       theme_minimal()
+  })
+  output$bike_heatmap <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%  # Add a base map
+      addHeatmap(
+        data = data,
+        lat = ~position.lat,
+        lng = ~position.lng,
+        radius = 15,  # Adjust the radius as needed
+        blur = 20  # Adjust the blur as needed
+      )
   })
   output$scatter_plot <- renderPlot({
       ggplot(data, aes(x = bike_stands, y = available_bike_stands)) +
