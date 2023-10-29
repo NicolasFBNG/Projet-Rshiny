@@ -22,58 +22,132 @@ library(shinythemes)
 library(shinydashboard)
 library(dplyr)
 library(leaflet.extras)
-# data
-data <- read.csv("Excel.csv")
-adresse_station = read.csv("Excel.csv")
+library(httr)
+library(jsonlite)
+library(RMySQL)
+library(tidygeocoder)
+library(tidyr)
+library(dplyr)
 
-ui <- dashboardPage(
-  dashboardHeader(title = "Vélo'v"),
-  dashboardSidebar(
-    sidebarMenu(
-      menuItem("Tableau de bord", tabName = "Dashboard", icon = icon("dashboard")),
-      menuItem("Table", tabName = "Table", icon = icon("dashboard")),
-      actionButton("reload_button", "Reload Data")
-    )
-  ),
-  dashboardBody(
-    tabItems(
-      tabItem(tabName = "Dashboard",
-              fluidRow(
-                # Add the valueBox to display the total number of bicycles
-                valueBox(
-                  value = sum(data$available_bikes),  # Calculate the total number of bikes
-                  subtitle = "Nombre total de vélos disponibles",
-                  icon = icon("bicycle"),
-                  color = "blue"  # You can adjust the color as needed
-                )),
-              fluidRow(
-                # Add the valueBox to display the total number of bicycles
-                valueBox(
-                  value = sum(data$available_bike_stands),  # Calculate the total number of bikes
-                  subtitle = "Nombre total de vélos en utilisation",
-                  icon = icon("bicycle"),
-                  color = "red"  # You can adjust the color as needed
-                )),
-              fluidRow(
-                box(title = "Carte", width = 7, solidHeader = TRUE, status = "primary", leafletOutput("map")),
-                box(title = "Status de la station", width = 5, plotOutput("graphique2"))
-              ),
-              box(title = "Nombre de stations à bonus", width = 6, plotOutput("bonus_vs_no_bonus_plot")),
-              box(title = "top_10_stations_chart", width = 6, plotOutput("top_10_stations_chart")),
-              box(title = "Scatter Plot", width = 6, plotOutput("scatter_plot")),
-              box(title = "Bike Stands and Available Bikes", width = 6, plotOutput("stacked_bar_chart")),
-              box(title = "Filter by Postcode", width = 6,
-                  selectInput("postcode_filter", "Select Postcode:",
-                              choices = c("", unique(data$postcode)), # Use unique_postcodes
-                              selected = "",
-                              multiple = TRUE)
-              )
-      ),
-      tabItem(tabName = "Table",
-              tableOutput("table")
-      )
-    )
-  )
+
+#Obtention des données
+
+base<-'https://api.jcdecaux.com/vls/v1/stations?contract='
+contract<-'Lyon'
+key<-'&apiKey=b59e18c899829b0903cc948041c9286aecc68768'
+
+API_URL<-paste0(base, contract, key)
+
+data <- read.csv("Excel.csv")
+adresse_station <-read.csv("Excel.csv")
+
+ui <- dashboardPage(skin="red",
+                    
+                    #Titre du dashboard  
+                    
+                    dashboardHeader(title = "Vélo'v"),
+                    
+                    #Menus sur le côté
+                    
+                    dashboardSidebar(
+                      sidebarMenu(
+                        sidebarSearchForm(textId = "searchText", buttonId = "searchButton",
+                                          label = "Search..."),
+                        menuItem("Tableau de bord", tabName = "Dashboard", icon = icon("dashboard")),
+                        menuItem("Table", tabName = "Table", icon = icon("th")),
+                        actionButton("reload_button", "Reload Data"),
+                        
+                        selectInput("postcode_filter", "Select Postcode:",
+                                    choices = c("", unique(data$postcode)), # Use unique_postcodes
+                                    selected = "",
+                                    multiple = TRUE)
+                         
+                      )
+                    ),
+                    
+                    #Contenue du menus
+                    
+                    dashboardBody(
+                      
+                      #Script CSS pour le titre du dashboard
+                      
+                      tags$head(tags$style(HTML('
+      .main-header .logo {
+        font-family: "Georgia", Times, "Times New Roman", serif;
+        font-weight: bold;
+        font-size: 24px;
+      }
+    '))),
+                      
+                      tabItems(
+                        
+                        #Premier menus      
+                        
+                        tabItem(tabName = "Dashboard",
+                                
+                                fluidRow(
+                                  # Nombre de vélos disponible
+                                  valueBox(
+                                    value = sum(data$available_bikes),
+                                    subtitle = "Nombre total de vélos disponibles",
+                                    width=3,
+                                    icon = icon("bicycle"),
+                                    color = "blue"                      # You can adjust the color as needed
+                                  ),
+                                  
+                                  #Nombre total de vélos
+                                  valueBox(
+                                    value = sum(data$available_bike_stands),  # Calculate the total number of bikes
+                                    subtitle = "Nombre de places disponibles",
+                                    width=3,
+                                    icon = icon("bicycle"),
+                                    color = "red"  # You can adjust the color as needed
+                                  ),
+                                  valueBox(
+                                    value=length(data$number),
+                                    subtitle = "Nombre de bornes",
+                                    width=3,
+                                    icon=icon("square-parking"),
+                                    color="blue"
+                                  ),
+                                  valueBox(
+                                    value=nrow(data[data$status=="CLOSED",]),
+                                    subtitle = "Nombre de bornes fermés",
+                                    width=3,
+                                    icon=icon("square-parking"),
+                                    color="red"
+                                  )
+                                  
+                                  
+                                  
+                                ),
+                                
+                                
+                                fluidRow(
+                                  #Carte
+                                  box(title = "Carte", width = 6, solidHeader = TRUE, leafletOutput("map"), color="red"),
+                                  #Top 10 stations avec le plus de vélos
+                                  box(title = "Top 10 des stations avec le plus de vélos", width = 6, plotOutput("top_10_stations_chart")),
+                                  
+                                ),
+                                
+                                fluidRow(
+                                  box(title = "Nombre de stations à bonus", width = 4, plotOutput("bonus_vs_no_bonus_plot")),
+                                  box(title = "Status de la station", width = 4, plotOutput("graphique2")),
+                                  box(title = "Scatter Plot", width = 4, plotOutput("scatter_plot")),
+                                ),
+                                
+                                box(title = "Bike Stands and Available Bikes", width = 6, plotOutput("stacked_bar_chart"))
+                                
+                        ),
+                        
+                        #Deuxième menus
+                        
+                        tabItem(tabName = "Table",
+                                tableOutput("table")
+                        )
+                      )
+                    )
 )
 
 server <- function(input, output, session) {
@@ -94,18 +168,18 @@ server <- function(input, output, session) {
       labs(x = "Name", y = "Available bike", title = "Nombre de vélo disponible par station")
   })
   
-
-    output$graphique2 <- renderPlot({
-      status_counts <- table(data$status)
-      data <- data.frame(status = names(status_counts), count = as.vector(status_counts))
-      
-      ggplot(data, aes(x = "", y = count, fill = status)) +
-        geom_bar(stat = "identity", width = 1) +
-        coord_polar(theta = "y") +
-        labs(title = "Distribution des Status des Station") +
-        theme_void()
-    })
+  
+  output$graphique2 <- renderPlot({
+    status_counts <- table(data$status)
+    data <- data.frame(status = names(status_counts), count = as.vector(status_counts))
     
+    ggplot(data, aes(x = "", y = count, fill = status)) +
+      geom_bar(stat = "identity", width = 1) +
+      coord_polar(theta = "y") +
+      labs(title = "Distribution des Status des Station") +
+      theme_void()
+  })
+  
   output$bonus_vs_no_bonus_plot <- renderPlot({
     ggplot(data, aes(x = bonus, fill = bonus)) +
       geom_bar() +
@@ -124,75 +198,75 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
       scale_x_discrete(name = "Station Name")
   })
-
+  
   output$scatter_plot <- renderPlot({
-      ggplot(data, aes(x = bike_stands, y = available_bike_stands)) +
-        geom_point() +
-        labs(title = "Bike Stands vs. Available Bike Stands",
-             x = "Bike Stands",
-             y = "Available Bike Stands")
-    })
+    ggplot(data, aes(x = bike_stands, y = available_bike_stands)) +
+      geom_point() +
+      labs(title = "Bike Stands vs. Available Bike Stands",
+           x = "Bike Stands",
+           y = "Available Bike Stands")
+  })
+  
+  df <- data
+  df$unavailable_bike_stands <- df$bike_stands - df$available_bike_stands
+  
+  output$stacked_bar_chart <- renderPlot({
+    ggplot(df, aes(x = contract_name)) +
+      geom_bar(aes(y = bike_stands, fill = "Total Bike Stands"), stat = "identity") +
+      geom_bar(aes(y = unavailable_bike_stands, fill = "Unavailable Bike Stands"), stat = "identity") +
+      labs(title = "Bike Stands and Available Bikes by Contract",
+           x = "Contract Name",
+           y = "Count") +
+      scale_fill_manual(values = c("Total Bike Stands" = "blue", "Unavailable Bike Stands" = "red")) +
+      guides(fill = guide_legend(title = "Legend"))
+  })
+  
+  output$map <- renderLeaflet({
+    filtered_data <- data
+    if (!is.null(input$postcode_filter) && !("" %in% input$postcode_filter)) {
+      filtered_data <- filtered_data[filtered_data$postcode %in% input$postcode_filter, ]
+    }
     
-    df <- data
-    df$unavailable_bike_stands <- df$bike_stands - df$available_bike_stands
-    
-    output$stacked_bar_chart <- renderPlot({
-      ggplot(df, aes(x = contract_name)) +
-        geom_bar(aes(y = bike_stands, fill = "Total Bike Stands"), stat = "identity") +
-        geom_bar(aes(y = unavailable_bike_stands, fill = "Unavailable Bike Stands"), stat = "identity") +
-        labs(title = "Bike Stands and Available Bikes by Contract",
-             x = "Contract Name",
-             y = "Count") +
-        scale_fill_manual(values = c("Total Bike Stands" = "blue", "Unavailable Bike Stands" = "red")) +
-        guides(fill = guide_legend(title = "Legend"))
-    })
-    
-    output$map <- renderLeaflet({
-      filtered_data <- data
-      if (!is.null(input$postcode_filter) && !("" %in% input$postcode_filter)) {
-        filtered_data <- filtered_data[filtered_data$postcode %in% input$postcode_filter, ]
-      }
-      
-      leaflet() %>%
-        addTiles() %>%
-        addMarkers(
-          data = filtered_data,
-          lat = ~`position.lat`,
-          lng = ~`position.lng`,
-          popup = ~paste("Postcode: ", postcode, "<br>",
-                         "Available Bikes: ", available_bikes, "<br>",
-                         "Available Bike Stands: ", available_bike_stands)
-        )
-    })
-    
-    # Observer to handle data reload
-    observeEvent(input$reload_button, {
-      # Reload data from the API using the API URL
-      raw_data <- GET(API_URL)
-      updated_data <- fromJSON(rawToChar(raw_data$content), flatten = TRUE)
-      
-      # join the two dataframes
-      merged_df <- bind_cols(updated_data, adresse_station %>%
-                               select(-one_of(names(updated_data)))
+    leaflet() %>%
+      addTiles() %>%
+      addMarkers(
+        data = filtered_data,
+        lat = ~`position.lat`,
+        lng = ~`position.lng`,
+        popup = ~paste("Postcode: ", postcode, "<br>",
+                       "Available Bikes: ", available_bikes, "<br>",
+                       "Available Bike Stands: ", available_bike_stands)
       )
-      # Update the 'data' variable with the newly loaded data
-      data <<- updated_data
-    })
+  })
+  
+  # Observer to handle data reload
+  observeEvent(input$reload_button, {
+    # Reload data from the API using the API URL
+    raw_data <- GET(API_URL)
+    updated_data <- fromJSON(rawToChar(raw_data$content), flatten = TRUE)
     
-    output$table <- renderTable({
-      d()
-    })
-    
-    output$summary <- renderPrint({
-      summary(d())
-    })
-    
-    output$plot <- renderPlot({
-      data$available_bikes
-      hist(data$available_bikes,
-           main = "histo",
-           col = "#75AADB", border = "white", breaks = input$n)
-    })
+    # join the two dataframes
+    merged_df <- bind_cols(updated_data, adresse_station %>%
+                             select(-one_of(names(updated_data)))
+    )
+    # Update the 'data' variable with the newly loaded data
+    data <- updated_data
+  })
+  
+  output$table <- renderTable({
+    d()
+  })
+  
+  output$summary <- renderPrint({
+    summary(d())
+  })
+  
+  output$plot <- renderPlot({
+    data$available_bikes
+    hist(data$available_bikes,
+         main = "histo",
+         col = "#75AADB", border = "white", breaks = input$n)
+  })
 }
 
 shinyApp(ui, server)
