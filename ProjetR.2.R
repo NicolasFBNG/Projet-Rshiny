@@ -11,9 +11,6 @@ if (!require(dplyr)) {
   install.packages("dplyr")
 }
 
-if (!require(dplyr)) {
-  install.packages("crosstalk")
-}
 
 library(shiny)
 library(leaflet)
@@ -21,17 +18,18 @@ library(ggplot2)
 library(shinythemes)
 library(shinydashboard)
 library(dplyr)
-library(crosstalk)
+
 # data
 data <- read.csv("Excel.csv")
-
+adresse_station = read.csv("Excel.csv")
 
 ui <- dashboardPage(
   dashboardHeader(title = "Vélo'v"),
   dashboardSidebar(
     sidebarMenu(
       menuItem("Tableau de bord", tabName = "Dashboard", icon = icon("dashboard")),
-      menuItem("Table", tabName = "Table", icon = icon("dashboard"))
+      menuItem("Table", tabName = "Table", icon = icon("dashboard")),
+      actionButton("reload_button", "Reload Data")
     )
   ),
   dashboardBody(
@@ -39,9 +37,9 @@ ui <- dashboardPage(
       tabItem(tabName = "Dashboard",
               fluidRow(
                 box(title = "Carte", width = 7, solidHeader = TRUE, status = "primary", leafletOutput("map")),
-                box(title = "Top 10 station", width = 5, plotOutput("graphique2"))
+                box(title = "Status de la station", width = 5, plotOutput("graphique2"))
               ),
-              box(title = "Contract Distribution", width = 6, plotOutput("contract_dist_plot")),
+              box(title = "Nombre de stations à bonus", width = 6, plotOutput("bonus_vs_no_bonus_plot")),
               box(title = "Bike Stands Histogram", width = 6, plotOutput("bike_stands_hist")),
               box(title = "Scatter Plot", width = 6, plotOutput("scatter_plot")),
               box(title = "Bike Stands and Available Bikes", width = 6, plotOutput("stacked_bar_chart")),
@@ -78,35 +76,19 @@ server <- function(input, output, session) {
   })
   
   output$graphique2 <- renderPlot({
-    data_filtered <- data %>%
-      arrange(desc(available_bikes)) %>%
-      head(10)
-    
-    data_filtered$name <- substr(data_filtered$name, 8, nchar(data_filtered$name))
-    
-    ggplot(data_filtered, aes(x = reorder(name, -available_bikes), y = available_bikes)) +
-      geom_bar(stat = "identity") +
-      labs(x = "Name", y = "Available bikes", title = "Stations with the most available bikes") +
-      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+    ggplot(data, aes(x = status)) +
+      geom_bar() +
+      labs(x = "Station Status", y = "Count", title = "Distribution of Station Status")
   })
     
-    output$contract_dist_plot <- renderPlot({
-      ggplot(data, aes(x = contract_name)) +
-        geom_bar(fill = "blue") +
-        labs(title = "Bicycle Stations by Contract",
-             x = "Contract Name",
-             y = "Number of Stations")
-    })
-    
-    output$bike_stands_hist <- renderPlot({
-      ggplot(data, aes(x = bike_stands)) +
-        geom_histogram(binwidth = 10, fill = "blue") +
-        labs(title = "Distribution of Bike Stands",
-             x = "Number of Bike Stands",
-             y = "Count")
-    })
-    
-    output$scatter_plot <- renderPlot({
+  output$bonus_vs_no_bonus_plot <- renderPlot({
+    ggplot(data, aes(x = bonus, fill = bonus)) +
+      geom_bar() +
+      labs(title = "Bonus vs. No Bonus Stations", x = "Bonus Availability", y = "Count") +
+      scale_fill_manual(values = c("yes" = "blue", "no" = "red")) +
+      theme_minimal()
+  })
+  output$scatter_plot <- renderPlot({
       ggplot(data, aes(x = bike_stands, y = available_bike_stands)) +
         geom_point() +
         labs(title = "Bike Stands vs. Available Bike Stands",
@@ -144,6 +126,20 @@ server <- function(input, output, session) {
                          "Available Bikes: ", available_bikes, "<br>",
                          "Available Bike Stands: ", available_bike_stands)
         )
+    })
+    
+    # Observer to handle data reload
+    observeEvent(input$reload_button, {
+      # Reload data from the API using the API URL
+      raw_data <- GET(API_URL)
+      updated_data <- fromJSON(rawToChar(raw_data$content), flatten = TRUE)
+      
+      # join the two dataframes
+      merged_df <- bind_cols(updated_data, adresse_station %>%
+                               select(-one_of(names(updated_data)))
+      )
+      # Update the 'data' variable with the newly loaded data
+      data <<- updated_data
     })
     
     output$table <- renderTable({
