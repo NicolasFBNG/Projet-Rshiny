@@ -3,7 +3,7 @@ library(leaflet)
 library(ggplot2)
 
 # Read data
-data <- read.csv("C:/Users/msaoudi/Documents/GitHub/Projet-Rshiny/Excel.csv")
+data <- read.csv("Excel.csv")
 
 # Define UI for the combined app
 ui <- fluidPage(
